@@ -36,8 +36,10 @@ export async function finaliseStream(streamId: string, ws: ServerWebSocket) {
     }
 
     // User banned/timed out — remove all their messages
-    if (action.is(YTNodes.MarkChatItemsByAuthorAsDeletedAction)) {
-      const banned = action.as(YTNodes.MarkChatItemsByAuthorAsDeletedAction);
+    if (action.is(YTNodes.MarkChatItemsByAuthorAsDeletedAction) || action.is(YTNodes.RemoveChatItemByAuthorAction)) {
+      const banned = action.is(YTNodes.MarkChatItemsByAuthorAsDeletedAction) 
+        ? action.as(YTNodes.MarkChatItemsByAuthorAsDeletedAction)
+        : action.as(YTNodes.RemoveChatItemByAuthorAction);
       ws.send(JSON.stringify({ info: "banned", externalChannelId: banned.external_channel_id }));
       return;
     }
