@@ -12,31 +12,7 @@ export async function getChannel(ws: ServerWebSocket) {
 
   const youtube = await innertube();
 
-  // Try to get all currently live streams from the channel's streams tab
-  const channel = await youtube.getChannel(niceId).catch(() => null);
-  if (channel?.has_live_streams) {
-    const liveTab = await channel.getLiveStreams().catch(() => null);
-    if (liveTab) {
-      const liveVideos = liveTab.videos.filter((video) => video.is_live);
-
-      if (liveVideos.length > 0) {
-        let activeStreams = liveVideos.length;
-
-        for (const video of liveVideos) {
-          finaliseStream(video.id, ws, () => {
-            activeStreams--;
-            if (activeStreams === 0) {
-              ws.close(1000, "All live streams have ended");
-            }
-          });
-        }
-        return;
-      }
-    }
-  }
-
-  // Fallback: resolve the /live URL directly (works for single-stream channels
-  // and channels without a dedicated streams tab)
+  // Resolve the primary stream quickly via the /live URL (proven, fast)
   const streamData = await youtube
     .resolveURL(`https://www.youtube.com/${niceId}/live`)
     .catch(() => null);
@@ -44,5 +20,43 @@ export async function getChannel(ws: ServerWebSocket) {
   if (!streamData?.payload?.videoId)
     return ws.close(1000, "Could not find stream by channel identifier");
 
-  finaliseStream(streamData.payload.videoId, ws);
+  const primaryVideoId = streamData.payload.videoId;
+
+  // Check for additional live streams beyond the primary one
+  let additionalVideoIds: string[] = [];
+  try {
+    const channel = await youtube.getChannel(niceId);
+    if (channel.has_live_streams) {
+      const liveTab = await channel.getLiveStreams();
+      additionalVideoIds = liveTab.videos
+        .filter((video) => {
+          try {
+            return video.is_live && video.id !== primaryVideoId;
+          } catch {
+            return false;
+          }
+        })
+        .map((video) => video.id);
+    }
+  } catch {
+    // Multi-stream detection failed; continue with the primary stream only
+  }
+
+  if (additionalVideoIds.length === 0) {
+    // Single stream — use the simple path with no onEnd callback
+    finaliseStream(primaryVideoId, ws);
+  } else {
+    // Multiple streams — track them all
+    const allVideoIds = [primaryVideoId, ...additionalVideoIds];
+    let activeStreams = allVideoIds.length;
+
+    for (const id of allVideoIds) {
+      finaliseStream(id, ws, () => {
+        activeStreams--;
+        if (activeStreams === 0) {
+          ws.close(1000, "All live streams have ended");
+        }
+      });
+    }
+  }
 }
