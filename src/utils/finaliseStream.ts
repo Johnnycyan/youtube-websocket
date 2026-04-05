@@ -16,8 +16,10 @@ export async function finaliseStream(
   const streamInfo = await youtube.getInfo(streamId);
   const liveChat = streamInfo.getLiveChat();
 
-  if (!liveChat)
+  if (!liveChat) {
+    if (onEnd) return onEnd();
     return ws.close(1000, "Requested content has no available live chat");
+  }
 
   liveChat.on("start", () => {
     liveChat.applyFilter("LIVE_CHAT");
