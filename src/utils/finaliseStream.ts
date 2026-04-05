@@ -6,7 +6,11 @@ import { textMessageToJSON } from "../adapters/textMessage";
 import { paidMessageToJSON } from "../adapters/paidMessage";
 
 /** Someone please open a fucking PR to find a better name for this. It's 1AM and I can't think of shit. */
-export async function finaliseStream(streamId: string, ws: ServerWebSocket) {
+export async function finaliseStream(
+  streamId: string,
+  ws: ServerWebSocket,
+  onEnd?: () => void,
+) {
   const youtube = await innertube();
 
   const streamInfo = await youtube.getInfo(streamId);
@@ -25,22 +29,34 @@ export async function finaliseStream(streamId: string, ws: ServerWebSocket) {
     // Message deleted by mod or retracted by user
     if (action.is(YTNodes.MarkChatItemAsDeletedAction)) {
       const deleted = action.as(YTNodes.MarkChatItemAsDeletedAction);
-      ws.send(JSON.stringify({ info: "deleted", message: deleted.target_item_id }));
+      ws.send(
+        JSON.stringify({ info: "deleted", message: deleted.target_item_id }),
+      );
       return;
     }
 
     if (action.is(YTNodes.RemoveChatItemAction)) {
       const removed = action.as(YTNodes.RemoveChatItemAction);
-      ws.send(JSON.stringify({ info: "deleted", message: removed.target_item_id }));
+      ws.send(
+        JSON.stringify({ info: "deleted", message: removed.target_item_id }),
+      );
       return;
     }
 
     // User banned/timed out — remove all their messages
-    if (action.is(YTNodes.MarkChatItemsByAuthorAsDeletedAction) || action.is(YTNodes.RemoveChatItemByAuthorAction)) {
-      const banned = action.is(YTNodes.MarkChatItemsByAuthorAsDeletedAction) 
+    if (
+      action.is(YTNodes.MarkChatItemsByAuthorAsDeletedAction) ||
+      action.is(YTNodes.RemoveChatItemByAuthorAction)
+    ) {
+      const banned = action.is(YTNodes.MarkChatItemsByAuthorAsDeletedAction)
         ? action.as(YTNodes.MarkChatItemsByAuthorAsDeletedAction)
         : action.as(YTNodes.RemoveChatItemByAuthorAction);
-      ws.send(JSON.stringify({ info: "banned", externalChannelId: banned.external_channel_id }));
+      ws.send(
+        JSON.stringify({
+          info: "banned",
+          externalChannelId: banned.external_channel_id,
+        }),
+      );
       return;
     }
 
@@ -62,8 +78,12 @@ export async function finaliseStream(streamId: string, ws: ServerWebSocket) {
   });
 
   liveChat.on("end", () => {
-    ws.close(1000, "Requested content's live chat has ended");
-    return liveChat.stop();
+    liveChat.stop();
+    if (onEnd) {
+      onEnd();
+    } else {
+      ws.close(1000, "Requested content's live chat has ended");
+    }
   });
 
   liveChat.start();
