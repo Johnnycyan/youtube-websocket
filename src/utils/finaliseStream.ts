@@ -21,6 +21,19 @@ export async function finaliseStream(
     return ws.close(1000, "Requested content has no available live chat");
   }
 
+  // Bypass the SmoothedQueue entirely so messages are emitted instantly with a 1s poll interval.
+  // The original callback re-triggers the private _pollLivechat method. Passing 10+ dummy
+  // actions takes its "fire-and-forget → immediate re-poll" path, avoiding the 2s empty-array wait.
+  // The dummy actions have is() returning false, so the chat-update handler silently ignores them.
+  const origCallback = liveChat.smoothed_queue.callback!;
+  const noopActions = Array.from({ length: 10 }, () => ({ is: () => false }));
+  liveChat.smoothed_queue.enqueueActionGroup = (group: any) => {
+    for (const action of [group].flat()) {
+      liveChat.emit("chat-update", action);
+    }
+    setTimeout(() => origCallback(noopActions), 1000);
+  };
+
   liveChat.on("start", () => {
     liveChat.applyFilter("LIVE_CHAT");
   });
