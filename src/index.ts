@@ -1,4 +1,4 @@
-import { Elysia, error, t } from "elysia";
+import { Elysia } from "elysia";
 
 import { getChannel } from "./routes/channel";
 import { getStream } from "./routes/stream";

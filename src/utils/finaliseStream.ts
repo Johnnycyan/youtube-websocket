@@ -1,14 +1,19 @@
-import type { ServerWebSocket } from "bun";
 import { innertube } from "./youtube";
 import { YTNodes } from "youtubei.js/web";
 
 import { textMessageToJSON } from "../adapters/textMessage";
 import { paidMessageToJSON } from "../adapters/paidMessage";
 
+interface WsLike {
+  readonly readyState: number;
+  send(data: string): unknown;
+  close(code?: number, reason?: string): void;
+}
+
 /** Someone please open a fucking PR to find a better name for this. It's 1AM and I can't think of shit. */
 export async function finaliseStream(
   streamId: string,
-  ws: ServerWebSocket,
+  ws: WsLike,
   onEnd?: () => void,
 ) {
   const youtube = await innertube();
@@ -16,8 +21,11 @@ export async function finaliseStream(
   const streamInfo = await youtube.getInfo(streamId);
   const liveChat = streamInfo.getLiveChat();
 
+  console.log("Youtube: finalising for stream:", streamId);
+
   if (!liveChat) {
     if (onEnd) return onEnd();
+    console.log("YouTube: Requested content has no available live chat");
     return ws.close(1000, "Requested content has no available live chat");
   }
 
@@ -26,7 +34,9 @@ export async function finaliseStream(
   // actions takes its "fire-and-forget → immediate re-poll" path, avoiding the 2s empty-array wait.
   // The dummy actions have is() returning false, so the chat-update handler silently ignores them.
   const origCallback = liveChat.smoothed_queue.callback!;
-  const noopActions = Array.from({ length: 10 }, () => ({ is: () => false }));
+  const noopActions = Array.from({ length: 10 }, () => ({
+    is: () => false,
+  })) as any;
   liveChat.smoothed_queue.enqueueActionGroup = (group: any) => {
     for (const action of [group].flat()) {
       liveChat.emit("chat-update", action);
@@ -93,6 +103,7 @@ export async function finaliseStream(
   });
 
   liveChat.on("end", () => {
+    console.log("YouTube: Live chat has ended for stream:", streamId);
     liveChat.stop();
     if (onEnd) {
       onEnd();

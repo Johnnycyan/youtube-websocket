@@ -1,14 +1,16 @@
-import type { ServerWebSocket } from "bun";
+import type { ElysiaWS } from "elysia/ws";
 import { innertube } from "../utils/youtube";
 import { finaliseStream } from "../utils/finaliseStream";
 
-export async function getChannel(ws: ServerWebSocket) {
-  if (!ws.data.params.id)
+export async function getChannel(ws: ElysiaWS<any>) {
+  if (!ws.data?.params?.id)
     return ws.close(1000, "Please specify a valid channel identifier");
 
   const niceId = /^UC.{22}$/.test(ws.data.params.id)
     ? ws.data.params.id
     : "@" + ws.data.params.id.replace("@", "");
+
+  console.log("YouTube: Resolving channel identifier:", niceId);
 
   const youtube = await innertube();
 
@@ -22,36 +24,50 @@ export async function getChannel(ws: ServerWebSocket) {
 
   const primaryVideoId = streamData.payload.videoId;
 
+  console.log("YouTube: Primary stream detected:", primaryVideoId);
+
   // Check for additional live streams beyond the primary one
   let additionalVideoIds: string[] = [];
   try {
-    const channel = await youtube.getChannel(niceId);
+    // getChannel() requires a UC... channel ID (not a handle), so resolve it from the video info
+    const videoInfo = await youtube.getBasicInfo(primaryVideoId);
+    const channelId = videoInfo.basic_info.channel_id;
+    if (!channelId) throw new Error("Could not resolve channel ID from video");
+    const channel = await youtube.getChannel(channelId);
     if (channel.has_live_streams) {
       const liveTab = await channel.getLiveStreams();
       additionalVideoIds = liveTab.videos
-        .filter((video) => {
+        .filter((video: any) => {
           try {
             return video.is_live && video.id !== primaryVideoId;
           } catch {
             return false;
           }
         })
-        .map((video) => video.id);
+        .map((video: any) => video.id as string);
+      console.log(
+        "YouTube: Additional live streams detected:",
+        additionalVideoIds,
+      );
     }
-  } catch {
+  } catch (exception) {
     // Multi-stream detection failed; continue with the primary stream only
+    console.log(
+      "YouTube: Failed to detect additional live streams:",
+      exception,
+    );
   }
 
   if (additionalVideoIds.length === 0) {
     // Single stream — use the simple path with no onEnd callback
-    finaliseStream(primaryVideoId, ws);
+    finaliseStream(primaryVideoId, ws.raw);
   } else {
     // Multiple streams — track them all
     const allVideoIds = [primaryVideoId, ...additionalVideoIds];
     let activeStreams = allVideoIds.length;
 
     for (const id of allVideoIds) {
-      finaliseStream(id, ws, () => {
+      finaliseStream(id, ws.raw, () => {
         activeStreams--;
         if (activeStreams === 0) {
           ws.close(1000, "All live streams have ended");

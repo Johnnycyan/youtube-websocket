@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "testchannel": "bun run ./test/channel.test.ts",
-    "teststream":  "bun run ./test/stream.test.ts"
+    "teststream": "bun run ./test/stream.test.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -13,7 +13,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "elysia": "^1.1.5",
-    "youtubei.js": "^10.3.0"
+    "elysia": "^1.4.28",
+    "youtubei.js": "^17.0.1"
   }
 }
