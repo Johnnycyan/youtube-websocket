@@ -10,8 +10,6 @@ export async function getChannel(ws: ElysiaWS<any>) {
     ? ws.data.params.id
     : "@" + ws.data.params.id.replace("@", "");
 
-  console.log("YouTube: Resolving channel identifier:", niceId);
-
   const youtube = await innertube();
 
   // Resolve the primary stream quickly via the /live URL (proven, fast)
@@ -24,6 +22,7 @@ export async function getChannel(ws: ElysiaWS<any>) {
 
   const primaryVideoId = streamData.payload.videoId;
 
+  console.log("YouTube: Getting data for:", niceId);
   console.log("YouTube: Primary stream detected:", primaryVideoId);
 
   // Check for additional live streams beyond the primary one
