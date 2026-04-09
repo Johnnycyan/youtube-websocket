@@ -34,8 +34,8 @@ export async function getChannel(ws: ElysiaWS<any>) {
       ? niceId
       : undefined;
     if (!channelId) {
-      const videoInfo = await youtube.getBasicInfo(primaryVideoId);
-      channelId = videoInfo.basic_info.channel_id;
+      const videoInfo = await youtube.getInfo(primaryVideoId);
+      channelId = videoInfo.secondary_info?.owner?.author?.id;
     }
     if (!channelId) throw new Error("Could not resolve channel ID from video");
     const channel = await youtube.getChannel(channelId);
