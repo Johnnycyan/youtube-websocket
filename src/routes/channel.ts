@@ -50,15 +50,16 @@ export async function getChannel(ws: ElysiaWS<any>) {
           }
         })
         .map((video: any) => video.id as string);
-      console.log(
-        "YouTube: Additional live streams detected:",
-        additionalVideoIds,
-      );
+      additionalVideoIds.length > 0 &&
+        console.log(
+          `YouTube ${niceId}: Additional live streams detected:`,
+          additionalVideoIds,
+        );
     }
   } catch (exception) {
     // Multi-stream detection failed; continue with the primary stream only
     console.log(
-      "YouTube: Failed to detect additional live streams:",
+      `YouTube ${niceId}: Failed to detect additional live streams:`,
       exception,
     );
   }
