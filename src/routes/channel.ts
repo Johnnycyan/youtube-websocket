@@ -28,9 +28,15 @@ export async function getChannel(ws: ElysiaWS<any>) {
   // Check for additional live streams beyond the primary one
   let additionalVideoIds: string[] = [];
   try {
-    // getChannel() requires a UC... channel ID (not a handle), so resolve it from the video info
-    const videoInfo = await youtube.getBasicInfo(primaryVideoId);
-    const channelId = videoInfo.basic_info.channel_id;
+    // getChannel() requires a UC... channel ID — use it directly if already in that format,
+    // otherwise attempt to resolve it from the video's basic info
+    let channelId: string | undefined = /^UC.{22}$/.test(niceId)
+      ? niceId
+      : undefined;
+    if (!channelId) {
+      const videoInfo = await youtube.getBasicInfo(primaryVideoId);
+      channelId = videoInfo.basic_info.channel_id;
+    }
     if (!channelId) throw new Error("Could not resolve channel ID from video");
     const channel = await youtube.getChannel(channelId);
     if (channel.has_live_streams) {
